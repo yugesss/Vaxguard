@@ -1,0 +1,734 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VaxGuard AI - Vaccine Cold-Chain Monitoring</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --primary-color: #16a34a; /* Tailwind green-600 */
+            --secondary-color: #d1d5db; /* Tailwind gray-300 */
+            --background-start: #f0fdf4; /* green-50 */
+            --background-end: #f3f4f6; /* gray-100 */
+            --card-bg: rgba(255, 255, 255, 0.9);
+            --border-radius: 1.5rem;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: radial-gradient(circle at top left, var(--background-start) 0%, var(--background-end) 100%);
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 2rem auto;
+            padding: 2rem;
+            background-color: var(--card-bg);
+            backdrop-filter: blur(10px);
+            border-radius: var(--border-radius);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
+        }
+
+        .card {
+            background-color: white;
+            padding: 1.5rem;
+            border-radius: 1.25rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -1px rgba(0, 0, 0, 0.04);
+            transition: transform 0.3s ease-in-out, box-shadow 0.3s ease-in-out;
+            border: 1px solid #e5e7eb;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+
+        .status-badge {
+            padding: 0.5rem 1.25rem;
+            border-radius: 9999px;
+            font-weight: 700;
+            text-transform: uppercase;
+            font-size: 0.875rem;
+            letter-spacing: 0.05em;
+        }
+
+        .status-good {
+            background-color: #d1fae5;
+            color: #065f46;
+        }
+
+        .status-alert {
+            background-color: #fee2e2;
+            color: #991b1b;
+        }
+        
+        .status-warning {
+            background-color: #fef9c3;
+            color: #a16207;
+        }
+
+        .scan-button {
+            transition: all 0.3s ease;
+            background-image: linear-gradient(45deg, #16a34a, #4ade80);
+            box-shadow: 0 8px 15px rgba(22, 163, 74, 0.3);
+            border: none;
+        }
+
+        .scan-button:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 12px 20px rgba(22, 163, 74, 0.4);
+        }
+
+        .scan-button:active {
+            transform: translateY(1px);
+        }
+
+        .scan-animation {
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% {
+                transform: scale(1);
+            }
+            50% {
+                transform: scale(1.03);
+            }
+        }
+
+        .counter-animation {
+            transition: all 1s ease-out;
+        }
+        
+        .notification-banner {
+            position: fixed;
+            top: 1rem;
+            left: 50%;
+            transform: translateX(-50%) translateY(-100px);
+            padding: 0.75rem 1.5rem;
+            border-radius: 9999px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            transition: all 0.5s cubic-bezier(0.68, -0.55, 0.27, 1.55);
+            z-index: 60;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            opacity: 0;
+            pointer-events: none;
+        }
+        .notification-banner.show {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+            pointer-events: auto;
+        }
+
+        .modal {
+            transition: opacity 0.3s ease, transform 0.3s ease;
+        }
+
+        .modal-content {
+            animation: zoomIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        @keyframes zoomIn {
+            from { transform: scale(0.95); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
+        }
+    </style>
+</head>
+<body class="min-h-screen text-gray-800">
+
+    <!-- Navigation Bar -->
+    <header class="bg-white/90 backdrop-blur-sm shadow-md sticky top-0 z-50">
+        <nav class="container mx-auto px-6 py-4 flex items-center justify-between">
+            <div class="flex items-center space-x-2">
+                <img src="vaxguardai.jpg" alt="VaxGuard AI Logo" class="w-10 h-10 rounded-full shadow-md">
+                <span class="font-extrabold text-xl tracking-wide text-gray-900">VaxGuard AI</span>
+            </div>
+            <div class="hidden sm:flex space-x-8 text-gray-600 font-medium">
+                <a href="#about" class="hover:text-green-600 transition-colors">About</a>
+                <a href="#features" class="hover:text-green-600 transition-colors">Features</a>
+                <a href="#technology" class="hover:text-green-600 transition-colors">Technology</a>
+                <a href="#scan" class="hover:text-green-600 transition-colors">Scan Vial</a>
+            </div>
+        </nav>
+    </header>
+
+    <!-- Notification Banner -->
+    <div id="notificationBanner" class="notification-banner">
+        <div id="notificationBannerIcon"></div>
+        <div id="notificationBannerMessage" class="font-semibold text-sm"></div>
+    </div>
+
+    <main class="p-4 sm:p-6">
+        <div class="container w-full">
+            <!-- Hero Section -->
+            <section id="hero" class="flex flex-col items-center justify-center text-center py-16 sm:py-24">
+                <div class="mb-6">
+                    <!-- Image of a vaccine vial with a smart label] -->
+                </div>
+                <h1 class="text-4xl sm:text-6xl font-extrabold text-gray-900 leading-tight mb-4 tracking-tight">
+                    Protecting What Matters, <br>One Vial at a Time.
+                </h1>
+                <p class="text-gray-500 mb-8 max-w-2xl mx-auto text-lg sm:text-xl leading-relaxed">
+                    VaxGuard AI provides a robust, dual-layered solution for real-time vaccine cold-chain monitoring, reducing wastage and saving lives.
+                </p>
+                <a href="#scan" class="scan-button text-white font-bold py-4 px-8 rounded-full shadow-lg hover:shadow-xl transition-all duration-300">
+                    Scan a Vial
+                </a>
+            </section>
+
+            <!-- Impact Dashboard Section -->
+            <section id="features" class="py-16">
+                <h2 class="text-3xl font-bold text-gray-800 text-center mb-10">Our Impact</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 text-center">
+                    <div class="card p-8 flex flex-col items-center">
+                        <div class="metric-icon bg-green-100 text-green-600 p-3 rounded-full mb-4">
+                             <!-- SVG icon for newborns protected -->
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-8 h-8">
+                                <path fill-rule="evenodd" d="M7.5 6a4.5 4.5 0 1 1 9 0 4.5 4.5 0 0 1-9 0ZM3.751 18a.75.75 0 0 1 .632.448l1.42 3.551a.75.75 0 0 1-.776.994l-1.636-.327a.75.75 0 0 1-.68-1.12l1.636-4.093a.75.75 0 0 1 .776-.994ZM16.29 20.25a.75.75 0 0 0 .632.448l1.42 3.551a.75.75 0 0 0-.776.994l-1.636-.327a.75.75 0 0 0-.68-1.12l1.636-4.093a.75.75 0 0 0 .776-.994ZM12 18.75a6.75 6.75 0 0 0 6.75-6.75h-1.5A5.25 5.25 0 0 1 12 17.25v1.5ZM5.25 12A6.75 6.75 0 0 1 12 5.25v-1.5A6.75 6.75 0 0 0 5.25 12h1.5ZM12 5.25A6.75 6.75 0 0 1 18.75 12h1.5A6.75 6.75 0 0 0 12 5.25v1.5ZM18.75 12a6.75 6.75 0 0 1-6.75 6.75v1.5A6.75 6.75 0 0 0 18.75 12h-1.5Z" clip-rule="evenodd" />
+                            </svg>
+                        </div>
+                        <div class="text-gray-900 font-extrabold text-4xl sm:text-5xl counter-animation" id="newbornsProtected">0</div>
+                        <div class="text-gray-500 font-semibold mt-2 text-md">Newborns Protected</div>
+                    </div>
+                    <div class="card p-8 flex flex-col items-center">
+                         <div class="metric-icon bg-green-100 text-green-600 p-3 rounded-full mb-4">
+                            <!-- SVG icon for cost savings -->
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-8 h-8">
+                                <path d="M11.5 2.25a.75.75 0 0 0 1.5 0v1.5a.75.75 0 0 0-1.5 0v-1.5ZM15 7.5a.75.75 0 0 0-1.5 0v2.25a.75.75 0 0 0 1.5 0V7.5ZM9 7.5a.75.75 0 0 0-1.5 0v2.25a.75.75 0 0 0 1.5 0V7.5ZM18.75 12a.75.75 0 0 0 0 1.5h2.25a.75.75 0 0 0 0-1.5h-2.25ZM4.5 12a.75.75 0 0 0 0 1.5h-2.25a.75.75 0 0 0 0-1.5H4.5ZM12 16.5a.75.75 0 0 0-1.5 0v2.25a.75.75 0 0 0 1.5 0v-2.25Z" />
+                                <path fill-rule="evenodd" d="M12 2.25a9.75 9.75 0 1 0 0 19.5 9.75 9.75 0 0 0 0-19.5ZM12 12a.75.75 0 0 1-.75.75c-1.63 0-2.873-.835-3.66-2.223a.75.75 0 0 1 1.298-1.002c.866 1.189 1.745 1.77 2.362 1.77.34 0 .615-.275.615-.615v-3.75A.75.75 0 0 1 12 6a.75.75 0 0 1 .75.75v3.75c0 .34-.275.615-.615.615h-.135Zm0 4.5a.75.75 0 0 1 .75.75c0 1.63.835 2.873 2.223 3.66a.75.75 0 0 1-1.002 1.298c-1.189-.866-1.77-1.745-1.77-2.362a.75.75 0 0 1 .75-.75h-.001Z" clip-rule="evenodd" />
+                            </svg>
+                        </div>
+                        <div class="text-gray-900 font-extrabold text-4xl sm:text-5xl counter-animation" id="costSavings">0</div>
+                        <div class="text-gray-500 font-semibold mt-2 text-md">Crore Saved</div>
+                    </div>
+                    <div class="card p-8 flex flex-col items-center">
+                         <div class="metric-icon bg-green-100 text-green-600 p-3 rounded-full mb-4">
+                            <!-- SVG icon for intact cold chain -->
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-8 h-8">
+                                <path fill-rule="evenodd" d="M5.525 12a3.75 3.75 0 0 1 7.5 0v4.75h1.25a.75.75 0 0 0 .75-.75V8.5a.75.75 0 0 0-.75-.75h-1.25V5.5a.75.75 0 0 0-.75-.75h-1.5a.75.75 0 0 0-.75.75v1.5h-.75a.75.75 0 0 0-.75.75v1.5h-1.5a.75.75 0 0 0-.75.75v4.5Zm-1.5 0a5.25 5.25 0 0 0 10.5 0V7.5a.75.75 0 0 1 1.5 0v5.25a.75.75 0 0 0 1.5 0V8.5a.75.75 0 0 1 1.5 0v7.5a.75.75 0 0 1-1.5 0v-4.75a.75.75 0 0 0-1.5 0v4.75a.75.75 0 0 1-1.5 0v-4.75a.75.75 0 0 0-1.5 0v4.75a.75.75 0 0 1-1.5 0v-4.75Z" clip-rule="evenodd" />
+                            </svg>
+                        </div>
+                        <div class="text-gray-900 font-extrabold text-4xl sm:text-5xl">100%</div>
+                        <div class="text-gray-500 font-semibold mt-2 text-md">Intact Cold Chain</div>
+                    </div>
+                </div>
+            </section>
+            
+            <!-- About Us Section -->
+            <section id="about" class="py-16">
+                <h2 class="text-3xl font-bold text-gray-800 text-center mb-10">About VaxGuard AI</h2>
+                <div class="card p-8 sm:p-12">
+                    <p class="text-gray-600 mb-4 text-center text-lg sm:text-xl leading-relaxed">
+                        VaxGuard AI is a revolutionary solution designed to prevent vaccine wastage by ensuring the integrity of the cold-chain. Our system combines a physical, irreversible thermochromic label with a sophisticated, embedded Graphene sensor that provides real-time temperature monitoring and predictive analysis.
+                    </p>
+                    <p class="text-gray-600 text-center text-lg sm:text-xl leading-relaxed">
+                        We aim to protect the health of millions of newborns and save billions in financial losses by providing healthcare workers with instant, verifiable data on vaccine viability.
+                    </p>
+                </div>
+            </section>
+
+            <!-- Technology Section -->
+            <section id="technology" class="py-16">
+                <h2 class="text-3xl font-bold text-gray-800 text-center mb-10">Our Technology</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div class="card p-8">
+                        <h3 class="text-xl font-bold text-gray-800 mb-4">Dual-Layer Guardian</h3>
+                        <p class="text-gray-600 mb-4">
+                            Our system uses a dual-layered approach for maximum reliability:
+                        </p>
+                        <ul class="list-disc list-inside space-y-2 text-gray-600">
+                            <li><strong class="text-gray-900">Thermochromic Label:</strong> An irreversible, self-adhesive label that changes color from green to red the moment a vial exceeds $8^{\circ}C$, providing an instant visual cue to frontline workers.</li>
+                            <li><strong class="text-gray-900">Graphene Sensor:</strong> An embedded sensor records temperature every minute with an accuracy of $\pm0.1^{\circ}C$. The data is stored offline for up to 72 hours and auto-syncs via LoRa or 4G.</li>
+                        </ul>
+                    </div>
+                    <div class="card p-8">
+                        <h3 class="text-xl font-bold text-gray-800 mb-4">Predictive AI & Blockchain</h3>
+                        <p class="text-gray-600 mb-4">
+                            The data collected by the sensor is analyzed by our predictive AI model to identify potential cold-chain failures before they occur. This allows for proactive intervention.
+                        </p>
+                        <p class="text-gray-600">
+                            Additionally, the entire cold-chain journey is recorded and timestamped on a blockchain, ensuring an immutable record and providing complete transparency and integrity of the data.
+                        </p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Scan Section -->
+            <section id="scan" class="py-16">
+                <h2 class="text-3xl font-bold text-gray-800 text-center mb-8">Scan a Vial</h2>
+                <p class="text-center text-gray-600 mb-8 max-w-lg mx-auto">
+                    Scan a vial to get a comprehensive report, powered by predictive AI and blockchain technology.
+                </p>
+                
+                <div class="flex justify-center mb-12">
+                    <button id="scanButton" class="scan-button text-white font-bold py-4 px-12 rounded-full shadow-lg">
+                        Scan Vial
+                    </button>
+                </div>
+
+                <div id="dataContainer" class="p-6 bg-gray-50 rounded-[1.5rem] shadow-inner hidden border border-gray-200">
+                    <!-- Data will be populated here -->
+                </div>
+            </section>
+
+            <!-- Custom Modal for Alerts -->
+            <div id="alertModal" class="fixed inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center p-4 z-50 hidden modal">
+                <div class="bg-white rounded-[1.5rem] p-8 shadow-xl w-full max-w-sm modal-content">
+                    <h3 id="alertTitle" class="text-xl font-bold text-center mb-4"></h3>
+                    <p id="alertMessage" class="text-base text-gray-600 text-center mb-6"></p>
+                    <div class="flex justify-center">
+                        <button onclick="document.getElementById('alertModal').classList.add('hidden')" class="bg-gray-200 text-gray-800 font-bold py-3 px-6 rounded-full hover:bg-gray-300 transition duration-300">
+                            OK
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+    
+    <!-- Footer -->
+    <footer class="bg-gray-800 text-white py-8 text-center mt-12">
+        <p class="text-sm">
+            &copy; 2025 VaxGuard AI. All rights reserved.
+        </p>
+    </footer>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const scanButton = document.getElementById('scanButton');
+            const dataContainer = document.getElementById('dataContainer');
+            const notificationBanner = document.getElementById('notificationBanner');
+            const notificationBannerMessage = document.getElementById('notificationBannerMessage');
+            const notificationBannerIcon = document.getElementById('notificationBannerIcon');
+
+            let temperatureChartInstance = null; // Variable to hold the chart instance
+
+            // Function to show a custom alert modal for critical messages
+            function showModalAlert(title, message) {
+                document.getElementById('alertTitle').innerText = title;
+                document.getElementById('alertMessage').innerText = message;
+                document.getElementById('alertModal').classList.remove('hidden');
+            }
+
+            // Function to show a temporary, non-blocking notification banner
+            function showNotification(message, type = 'info') {
+                let colorClass = 'bg-blue-100 text-blue-800';
+                let iconHtml = `
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z" />
+                    </svg>
+                `;
+                
+                if (type === 'success') {
+                    colorClass = 'bg-green-100 text-green-800';
+                    iconHtml = `
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5">
+                            <path fill-rule="evenodd" d="M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12Zm13.36-1.814a.75.75 0 1 0-1.22-.872l-3.236 4.53L9.53 12.22a.75.75 0 0 0-1.06 1.06l2.25 2.25a.75.75 0 0 0 1.14-.094l3.75-5.25Z" clip-rule="evenodd" />
+                        </svg>
+                    `;
+                } else if (type === 'alert') {
+                    colorClass = 'bg-red-100 text-red-800';
+                    iconHtml = `
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5">
+                            <path fill-rule="evenodd" d="M9.401 3.003c1.155-2.004 4.043-2.004 5.197 0 .341.59-.115 1.353-.872 1.353H10.27c-.757 0-1.213-.764-.872-1.353ZM12 10.5a.75.75 0 0 1 .75.75v4.5a.75.75 0 0 1-1.5 0v-4.5a.75.75 0 0 1 .75-.75Zm.75 7.5a.75.75 0 1 0-1.5 0 .75.75 0 0 0 1.5 0Z" clip-rule="evenodd" />
+                        </svg>
+                    `;
+                } else if (type === 'warning') {
+                    colorClass = 'bg-yellow-100 text-yellow-800';
+                    iconHtml = `
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5">
+                            <path fill-rule="evenodd" d="M9.401 3.003c1.155-2.004 4.043-2.004 5.197 0 .341.59-.115 1.353-.872 1.353H10.27c-.757 0-1.213-.764-.872-1.353ZM12 10.5a.75.75 0 0 1 .75.75v4.5a.75.75 0 0 1-1.5 0v-4.5a.75.75 0 0 1 .75-.75Zm.75 7.5a.75.75 0 1 0-1.5 0 .75.75 0 0 0 1.5 0Z" clip-rule="evenodd" />
+                        </svg>
+                    `;
+                }
+                
+                notificationBanner.className = `notification-banner ${colorClass} show`;
+                notificationBannerIcon.innerHTML = iconHtml;
+                notificationBannerMessage.innerText = message;
+
+                // Hide the notification after 5 seconds
+                setTimeout(() => {
+                    notificationBanner.classList.remove('show');
+                }, 5000);
+            }
+
+            // Function to copy text to clipboard
+            function copyToClipboard(text) {
+                const textarea = document.createElement('textarea');
+                textarea.value = text;
+                document.body.appendChild(textarea);
+                textarea.select();
+                try {
+                    document.execCommand('copy');
+                    showNotification("Data copied to clipboard!", "success");
+                } catch (err) {
+                    showModalAlert("Copy Failed", "Could not copy data to clipboard. Please try again or copy manually.");
+                }
+                document.body.removeChild(textarea);
+            }
+
+            // Function to animate a counter
+            function animateCounter(elementId, start, end, duration) {
+                let startTimestamp = null;
+                const element = document.getElementById(elementId);
+                const step = (timestamp) => {
+                    if (!startTimestamp) startTimestamp = timestamp;
+                    const progress = Math.min((timestamp - startTimestamp) / duration, 1);
+                    element.innerHTML = new Intl.NumberFormat().format(Math.floor(progress * (end - start) + start));
+                    if (progress < 1) {
+                        window.requestAnimationFrame(step);
+                    }
+                };
+                window.requestAnimationFrame(step);
+            }
+            
+            // Start the animated dashboard on load
+            animateCounter('newbornsProtected', 0, 26000000, 2000);
+            animateCounter('costSavings', 0, 2000, 2000);
+
+            // Sample data for different vials
+            const vialDataSets = [
+                {
+                    vialId: 'VG-2025-1589-A',
+                    productName: 'VaxGuard AI Flu Vaccine',
+                    lotNumber: 'L2025-A7B8',
+                    manufacturingDate: '2025-05-20',
+                    expirationDate: '2027-05-20',
+                    status: 'Good',
+                    stickerStatus: 'Green',
+                    aiPrediction: 'No temperature drift detected. Maintaining optimal cold chain.',
+                    aiPredictionClass: 'status-good',
+                    aiActionableInsight: 'No action required. The vial is safe to use.',
+                    blockchainHash: '0x1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d',
+                    vaccineFeatures: ['Protects against seasonal influenza strains.', 'Active immunization for adults and children over 6 months old.'],
+                    temperatureLog: [
+                        { timestamp: '2025-08-10T08:00:00Z', tempC: 4.2 },
+                        { timestamp: '2025-08-10T12:00:00Z', tempC: 5.1 },
+                        { timestamp: '2025-08-10T16:00:00Z', tempC: 4.8 },
+                        { timestamp: '2025-08-10T20:00:00Z', tempC: 4.5 },
+                        { timestamp: '2025-08-11T00:00:00Z', tempC: 5.0 },
+                    ],
+                    journey: ['Manufacturing Plant', 'Distribution Center', 'Local Clinic'],
+                    additionalInfo: 'Stored in a climate-controlled warehouse. No cold chain excursions recorded.',
+                },
+                {
+                    vialId: 'VG-2025-2234-B',
+                    productName: 'Hepatitis-B Vaccine',
+                    lotNumber: 'L2025-X9Y0',
+                    manufacturingDate: '2025-06-15',
+                    expirationDate: '2027-06-15',
+                    status: 'Temperature Excursion Alert',
+                    stickerStatus: 'Red',
+                    aiPrediction: '48-hour early warning: Upward temperature drift predicted. Requires immediate assessment.',
+                    aiPredictionClass: 'status-alert',
+                    aiActionableInsight: 'Discard vial and contact supervisor. Do not use for patient care.',
+                    blockchainHash: '0x2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e',
+                    vaccineFeatures: ['Provides immunity against Hepatitis-B virus.', 'Recommended for newborns and high-risk individuals.'],
+                    temperatureLog: [
+                        { timestamp: '2025-08-12T09:00:00Z', tempC: 6.5 },
+                        { timestamp: '2025-08-12T13:00:00Z', tempC: 8.8 },
+                        { timestamp: '2025-08-12T17:00:00Z', tempC: 12.1 },
+                        { timestamp: '2025-08-12T21:00:00Z', tempC: 10.5 },
+                        { timestamp: '2025-08-13T01:00:00Z', tempC: 7.9 },
+                    ],
+                    journey: ['Manufacturing Plant', 'Distribution Center', 'In Transit'],
+                    additionalInfo: 'Transported via local logistics. Temperature briefly exceeded recommended limits. Requires immediate assessment before use.',
+                },
+                {
+                    vialId: 'VG-2025-8765-C',
+                    productName: 'Tetanus Toxin Vaccine',
+                    lotNumber: 'L2025-K4L5',
+                    manufacturingDate: '2025-03-01',
+                    expirationDate: '2027-03-01',
+                    status: 'Good',
+                    stickerStatus: 'Green',
+                    aiPrediction: 'No temperature drift detected. Maintaining optimal cold chain.',
+                    aiPredictionClass: 'status-good',
+                    aiActionableInsight: 'No action required. The vial is safe to use.',
+                    blockchainHash: '0x3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f',
+                    vaccineFeatures: ['Prevents Tetanus.', 'Booster shots recommended every 10 years.'],
+                    temperatureLog: [
+                        { timestamp: '2025-08-05T10:00:00Z', tempC: 3.9 },
+                        { timestamp: '2025-08-05T14:00:00Z', tempC: 4.1 },
+                        { timestamp: '2025-08-05T18:00:00Z', tempC: 4.0 },
+                        { timestamp: '2025-08-05T22:00:00Z', tempC: 3.8 },
+                        { timestamp: '2025-08-06T02:00:00Z', tempC: 4.2 },
+                    ],
+                    journey: ['Manufacturing Plant', 'Distribution Center', 'Local Clinic'],
+                    additionalInfo: 'Optimal cold chain maintained throughout the supply chain. Ready for distribution.',
+                },
+                {
+                    vialId: 'VG-2025-9987-D',
+                    productName: 'Polio Vaccine',
+                    lotNumber: 'L2025-P12M',
+                    manufacturingDate: '2025-07-10',
+                    expirationDate: '2027-07-10',
+                    status: 'Temperature Warning',
+                    stickerStatus: 'Yellow',
+                    aiPrediction: 'Temperature trending upwards. Predicted to exceed optimal range within 12 hours.',
+                    aiPredictionClass: 'status-warning',
+                    aiActionableInsight: 'Relocate vial to a colder storage unit immediately. Monitor closely.',
+                    blockchainHash: '0x4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a',
+                    vaccineFeatures: ['Oral vaccine to prevent Polio.', 'Recommended for children under 5 years of age.'],
+                    temperatureLog: [
+                        { timestamp: '2025-09-01T15:00:00Z', tempC: 4.5 },
+                        { timestamp: '2025-09-01T17:00:00Z', tempC: 5.8 },
+                        { timestamp: '2025-09-01T19:00:00Z', tempC: 6.2 },
+                        { timestamp: '2025-09-01T21:00:00Z', tempC: 7.1 },
+                        { timestamp: '2025-09-01T23:00:00Z', tempC: 7.8 },
+                    ],
+                    journey: ['Manufacturing Plant', 'Distribution Center', 'Local Clinic'],
+                    additionalInfo: 'Temperature trend indicates potential issue. Urgent attention is needed to prevent cold chain failure.',
+                }
+            ];
+
+            function renderTemperatureChart(data) {
+                // Destroy old chart instance if it exists
+                if (temperatureChartInstance) {
+                    temperatureChartInstance.destroy();
+                }
+
+                const ctx = document.getElementById('temperatureChart').getContext('2d');
+                
+                const labels = data.temperatureLog.map(log => {
+                    const date = new Date(log.timestamp);
+                    return `${date.getHours()}:${String(date.getMinutes()).padStart(2, '0')} on ${date.getMonth() + 1}/${date.getDate()}`;
+                });
+                const temperatures = data.temperatureLog.map(log => log.tempC);
+                
+                let chartDatasets = [{
+                    label: 'Actual Temperature (°C)',
+                    data: temperatures,
+                    borderColor: '#16a34a', // Green-600
+                    backgroundColor: 'rgba(22, 163, 74, 0.2)', // Green-600 with alpha
+                    borderWidth: 2,
+                    pointBackgroundColor: '#16a34a',
+                    pointBorderColor: '#fff',
+                    pointHoverRadius: 5,
+                    pointHoverBorderColor: 'rgba(255,255,255,0.8)',
+                    tension: 0.3,
+                    fill: true,
+                }];
+
+                let chartLabels = labels;
+
+                if (data.status.includes('Alert') || data.status.includes('Warning')) {
+                    const lastTemp = temperatures[temperatures.length - 1];
+                    const predictedTemps = [...temperatures, lastTemp + 1.5, lastTemp + 2, lastTemp + 2.5, lastTemp + 3];
+                    const predictedLabels = ['Now', '+4hr', '+8hr', '+12hr', '+16hr'];
+
+                    chartLabels = [...labels.slice(0, labels.length - 1), ...predictedLabels];
+                    
+                    chartDatasets.push({
+                        label: 'Predicted Temperature (°C)',
+                        data: predictedTemps,
+                        borderColor: data.status.includes('Alert') ? '#dc2626' : '#d97706',
+                        borderWidth: 2,
+                        borderDash: [8, 4],
+                        pointRadius: 0,
+                        tension: 0.3,
+                        fill: false,
+                        yAxisID: 'y'
+                    });
+                }
+
+                const chartOptions = {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: false,
+                            title: { display: true, text: 'Temperature (°C)', color: '#4b5563' },
+                            grid: { color: '#e5e7eb' },
+                            ticks: {
+                                callback: function(value) {
+                                    return value.toFixed(1) + '°C';
+                                }
+                            }
+                        },
+                        x: {
+                            title: { display: true, text: 'Timestamp', color: '#4b5563' },
+                            grid: { display: false }
+                        }
+                    },
+                    plugins: {
+                        legend: { display: data.status.includes('Alert') || data.status.includes('Warning') },
+                        tooltip: { 
+                            backgroundColor: 'rgba(0, 0, 0, 0.7)', 
+                            titleColor: '#fff', 
+                            bodyColor: '#fff',
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.dataset.label || '';
+                                    if (label) {
+                                        label += ': ';
+                                    }
+                                    if (context.parsed.y !== null) {
+                                        label += context.parsed.y.toFixed(1) + '°C';
+                                    }
+                                    return label;
+                                }
+                            }
+                        }
+                    }
+                };
+
+                temperatureChartInstance = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: chartLabels,
+                        datasets: chartDatasets
+                    },
+                    options: chartOptions,
+                });
+            }
+
+            scanButton.addEventListener('click', () => {
+                scanButton.innerText = "Scanning...";
+                scanButton.classList.add('scan-animation');
+                dataContainer.classList.add('hidden');
+                
+                notificationBanner.classList.remove('show');
+
+                setTimeout(() => {
+                    scanButton.innerText = "Scan Vial";
+                    scanButton.classList.remove('scan-animation');
+
+                    const randomIndex = Math.floor(Math.random() * vialDataSets.length);
+                    const data = vialDataSets[randomIndex];
+
+                    const statusClass = data.status.includes('Alert') ? 'status-alert' : (data.status.includes('Warning') ? 'status-warning' : 'status-good');
+
+                    const displayHtml = `
+                        <div class="space-y-8 animate-fade-in">
+                            <h2 class="text-3xl font-bold text-gray-800 text-center pb-4 mb-4 border-b-2 border-green-200">
+                                Scan Results
+                            </h2>
+
+                            <!-- Overall Status Card -->
+                            <div class="card text-center py-8">
+                                <p class="text-gray-500 font-semibold mb-2 text-sm uppercase tracking-wide">Overall Status</p>
+                                <div class="flex items-center justify-center">
+                                    <span class="status-badge text-2xl ${statusClass}">${data.status}</span>
+                                </div>
+                            </div>
+
+                            <!-- Main Data & AI Features Section -->
+                            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                                <div class="card p-6">
+                                    <h3 class="text-xl font-bold text-gray-800 mb-4 border-b pb-2 border-gray-200">Vial Details</h3>
+                                    <div class="space-y-4 text-gray-700 text-sm">
+                                        <div class="flex items-center justify-between">
+                                            <span class="font-semibold">Vial ID:</span>
+                                            <span class="font-extrabold text-gray-900">${data.vialId}</span>
+                                        </div>
+                                        <div class="flex items-center justify-between">
+                                            <span class="font-semibold">Product Name:</span>
+                                            <span>${data.productName}</span>
+                                        </div>
+                                        <div class="flex items-center justify-between">
+                                            <span class="font-semibold">Lot Number:</span>
+                                            <span>${data.lotNumber}</span>
+                                        </div>
+                                        <div class="flex items-center justify-between">
+                                            <span class="font-semibold">Manufacturing Date:</span>
+                                            <span>${data.manufacturingDate}</span>
+                                        </div>
+                                        <div class="flex items-center justify-between">
+                                            <span class="font-semibold">Expiration Date:</span>
+                                            <span>${data.expirationDate}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="card p-6">
+                                    <h3 class="text-xl font-bold text-gray-800 mb-4 border-b pb-2 border-gray-200">AI & Blockchain Insights</h3>
+                                    <div class="space-y-4">
+                                        <div>
+                                            <h4 class="text-gray-500 font-semibold text-sm flex items-center mb-1">
+                                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5 text-gray-600 mr-2">
+                                                    <path d="M11.25 4.507a.752.752 0 0 0-.256.558v3.823a.75.75 0 0 0 .44 1.256l.808.202a.75.75 0 0 1 .548.703v3.268a.75.75 0 0 1-.482.694l-2.007.502a.75.75 0 0 0-.548.703v3.823c0 .265.105.52.285.706A.75.75 0 0 0 12 21.75c2.062 0 4.091-.356 5.992-1.01a.75.75 0 0 0-.129-1.46l-.329.083a15.842 15.842 0 0 1-5.698 1.096 15.842 15.842 0 0 1-5.698-1.096l-.329-.083a.75.75 0 0 0-.129 1.46c1.901.654 3.93 1.01 5.992 1.01Z" />
+                                                    <path d="M12 2.25c2.062 0 4.091.356 5.992 1.01a.75.75 0 0 0 .129-1.46l-.329-.083A15.842 15.842 0 0 1 12 1.5c-2.062 0-4.091.356-5.992 1.01a.75.75 0 0 0-.129 1.46l.329.083A15.842 15.842 0 0 1 12 2.25Z" />
+                                                </svg>
+                                                Predictive AI
+                                            </h4>
+                                            <p class="text-gray-800 ${data.aiPredictionClass} mb-2 text-md leading-relaxed">
+                                                ${data.aiPrediction}
+                                            </p>
+                                            <div class="card border-l-4 p-4 ${data.status.includes('Alert') ? 'border-red-500 bg-red-50' : (data.status.includes('Warning') ? 'border-yellow-500 bg-yellow-50' : 'border-green-500 bg-green-50')}">
+                                                <p class="font-bold text-gray-800 text-sm">Actionable Insight:</p>
+                                                <p class="text-gray-600 text-sm">${data.aiActionableInsight}</p>
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <h4 class="text-gray-500 font-semibold text-sm flex items-center mb-1">
+                                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5 text-gray-600 mr-2">
+                                                    <path fill-rule="evenodd" d="M12.97 3.97a.75.75 0 0 1 1.06 0l7.5 7.5a.75.75 0 0 1 0 1.06l-7.5 7.5a.75.75 0 1 1-1.06-1.06l6.22-6.22H3a.75.75 0 0 1 0-1.5h16.19l-6.22-6.22a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd" />
+                                                </svg>
+                                                Blockchain Hash
+                                            </h4>
+                                            <p class="text-gray-800 break-words text-sm font-mono">${data.blockchainHash}</p>
+                                            <button onclick="showModalAlert('Blockchain Verified!', 'This hash has been successfully verified on the blockchain, confirming the data\'s integrity.')" class="mt-2 text-xs text-green-600 hover:underline">
+                                                Verify on Blockchain
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Temperature Log Card with Chart -->
+                            <div class="card p-6 mt-8">
+                                <h3 class="text-xl font-bold text-gray-800 mb-4 border-b pb-2 border-gray-200">Temperature Log</h3>
+                                <div class="bg-gray-50 p-4 rounded-xl border border-gray-200" style="height: 350px;">
+                                    <canvas id="temperatureChart"></canvas>
+                                </div>
+                            </div>
+
+                            <!-- Journey & Additional Info Section -->
+                            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                                <div class="card p-6">
+                                    <h3 class="text-xl font-bold text-gray-800 mb-4 border-b pb-2 border-gray-200">Cold-Chain Journey</h3>
+                                    <div class="flex items-center space-x-2 flex-wrap">
+                                        ${data.journey.map(step => `<span class="text-gray-800 font-semibold">${step}</span>`).join('<span class="text-gray-400">&rarr;</span>')}
+                                    </div>
+                                </div>
+
+                                <div class="card p-6">
+                                    <h3 class="text-xl font-bold text-gray-800 mb-4 border-b pb-2 border-gray-200">Additional Information</h3>
+                                    <p class="text-gray-800">${data.additionalInfo}</p>
+                                </div>
+                            </div>
+                            
+                            <!-- Actions -->
+                            <div class="flex justify-center mt-8">
+                                <button onclick="copyToClipboard('${JSON.stringify(data, null, 2)}')" class="bg-gray-800 text-white font-bold py-3 px-6 rounded-full shadow-lg hover:bg-gray-900 transition duration-300 transform hover:scale-105">
+                                    Copy All Data
+                                </button>
+                            </div>
+                        </div>
+                    `;
+
+                    dataContainer.innerHTML = displayHtml;
+                    dataContainer.classList.remove('hidden');
+
+                    if (data.status.includes('Alert')) {
+                        showModalAlert("Critical Alert!", "This vial has experienced a temperature excursion. Do not use for patient care. Discard immediately.");
+                    } else if (data.status.includes('Warning')) {
+                        showNotification("Temperature warning! Relocate vial to a colder storage unit immediately.", "warning");
+                    } else {
+                        showNotification("Scan complete. Vial status is Good.", "success");
+                    }
+
+                    renderTemperatureChart(data);
+                }, 1500); // Simulate a 1.5 second scanning process
+            });
+        });
+    </script>
+</body>
+</html>
